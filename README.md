@@ -39,7 +39,7 @@ fn main() -> eframe::Result {
 ### Go
 
 ```bash
-go get github.com/soundadam/appkit/go@go/v0.1.0
+go get github.com/soundadam/appkit/go@v0.1.0
 ```
 
 ```go
@@ -121,7 +121,7 @@ Cask 模板放在应用仓的 `packaging/homebrew/<name>.rb`，release workflow 
 
 ## 发版
 
-两份实现各自打 tag：Rust 是 `rust/v<version>`（与 `rust/Cargo.toml` 一致），Go 是 `go/v<version>`（Go 子模块的 tag 格式）。
+两份实现各自打 tag：Rust 是 `rust/v<version>`（与 `rust/Cargo.toml` 一致），Go 是 `go/v<version>`（Go 子模块的 tag 格式，引用时写 `@v<version>`）。
 约定变了，同一个改动里改这份 README 与两份实现。
 
 ## 本地检查
