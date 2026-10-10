@@ -1,0 +1,2 @@
+# gofmt 只认 LF；Windows 上的 checkout 默认会换成 CRLF
+*.go text eol=lf
