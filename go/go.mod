@@ -2,6 +2,8 @@ module github.com/soundadam/appkit/go
 
 go 1.25.0
 
+toolchain go1.27.2
+
 require (
 	github.com/charmbracelet/bubbletea v1.3.6
 	github.com/spf13/cobra v1.10.2
