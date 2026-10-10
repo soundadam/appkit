@@ -1,17 +1,18 @@
 [package]
 name = "appkit"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["soundadam"]
 repository = "https://github.com/soundadam/appkit"
 license = "MIT OR Apache-2.0"
-description = "Version, install source, update checks and self-update for soundadam desktop apps"
+description = "Version, install source, update checks, self-update and the shared command line for soundadam apps"
 
 [features]
 # 现成的 egui 控件：顶栏更新提示与设置项
 egui = ["dep:egui"]
 
 [dependencies]
+clap = { version = "4", features = ["derive"] }
 dirs = "6"
 egui = { version = "0.29", default-features = false, optional = true }
 flate2 = "1"

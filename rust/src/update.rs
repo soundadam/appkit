@@ -113,7 +113,7 @@ pub fn apply(
         Install::Dev => return Err(Error::new("updating", "development build")),
     };
     let dir = current.parent().unwrap_or(Path::new("."));
-    let asset = release.asset_for_this_platform(app)?;
+    let asset = release.asset_for_this_platform(app, matches!(install, Install::Bundle(_)))?;
 
     // 暂存在同一目录：最后一步是同一文件系统内的 rename，也顺便提前查出没有写权限
     let staging = tempfile::Builder::new()
