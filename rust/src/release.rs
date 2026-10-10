@@ -59,13 +59,14 @@ impl Release {
         })
     }
 
-    /// 本机平台该下载的那个产物。
-    pub fn asset_for_this_platform(&self, app: &App) -> Result<&Asset> {
+    /// 本机平台该下载的那个产物；`bundle` 表示要的是 macOS 的 `.app`。
+    pub fn asset_for_this_platform(&self, app: &App, bundle: bool) -> Result<&Asset> {
         let name = asset_name(
             app.name,
             &self.version,
             std::env::consts::OS,
             std::env::consts::ARCH,
+            bundle,
         )
         .ok_or_else(|| Error::new("updating", "no release builds for this platform"))?;
         self.assets
@@ -75,10 +76,17 @@ impl Release {
     }
 }
 
-/// 产物文件名：`<name>-<version>-<platform>.<ext>`，与各仓的 `scripts/package.sh` 一致。
-pub(crate) fn asset_name(name: &str, version: &Version, os: &str, arch: &str) -> Option<String> {
+/// 产物文件名：`<name>-<version>-<platform>.<ext>`，见 README 的「发布产物」。
+pub(crate) fn asset_name(
+    name: &str,
+    version: &Version,
+    os: &str,
+    arch: &str,
+    bundle: bool,
+) -> Option<String> {
     let platform = match os {
-        "macos" => "macos-universal.zip".to_string(),
+        "macos" if bundle => "macos-universal.zip".to_string(),
+        "macos" => format!("macos-{arch}.tar.gz"),
         "linux" => format!("linux-{arch}.tar.gz"),
         "windows" => format!("windows-{arch}.zip"),
         _ => return None,
@@ -94,14 +102,18 @@ mod tests {
     fn asset_names_follow_the_package_script() {
         let v = Version::new(1, 2, 3);
         assert_eq!(
-            asset_name("demo", &v, "linux", "aarch64").as_deref(),
+            asset_name("demo", &v, "linux", "aarch64", false).as_deref(),
             Some("demo-1.2.3-linux-aarch64.tar.gz")
         );
-        // macOS 只发一份通用二进制，与 arch 无关
+        // .app 只发一份通用二进制，与 arch 无关；不带 .app 的按 arch 分
         assert_eq!(
-            asset_name("demo", &v, "macos", "aarch64"),
-            asset_name("demo", &v, "macos", "x86_64")
+            asset_name("demo", &v, "macos", "aarch64", true),
+            asset_name("demo", &v, "macos", "x86_64", true)
         );
-        assert_eq!(asset_name("demo", &v, "freebsd", "x86_64"), None);
+        assert_ne!(
+            asset_name("demo", &v, "macos", "aarch64", false),
+            asset_name("demo", &v, "macos", "x86_64", false)
+        );
+        assert_eq!(asset_name("demo", &v, "freebsd", "x86_64", false), None);
     }
 }

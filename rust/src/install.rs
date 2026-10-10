@@ -13,7 +13,7 @@ pub enum Install {
     },
     /// macOS 上从 Releases 解压出来的 `.app`，整个 bundle 原地替换。
     Bundle(PathBuf),
-    /// Windows / Linux 上的单个可执行文件，原地替换。
+    /// 单个可执行文件，原地替换。
     Executable(PathBuf),
     /// cargo 构建目录里跑的，不更新。
     Dev,

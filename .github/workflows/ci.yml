@@ -9,25 +9,48 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  test:
+  rust:
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: rust
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
       - run: cargo fmt --check && cargo clippy --all-targets --all-features -- -D warnings && cargo test --all-features
+
+  go:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: go
         shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - run: test -z "$(gofmt -l .)" && go vet ./... && go test ./...
 
   # 分支保护只要这一个检查名
   check:
-    needs: test
+    needs: [rust, go]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - run: test "${{ needs.test.result }}" = success
+      - run: test "${{ needs.rust.result }}" = success && test "${{ needs.go.result }}" = success
