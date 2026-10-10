@@ -1,6 +1,9 @@
 package appkit
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 var demo = App{Name: "demo", Version: "1.0.0", Repo: "owner/demo"}
 
@@ -19,7 +22,9 @@ func TestClassify(t *testing.T) {
 		{App{Name: "demo", Version: "dev", Repo: "owner/demo"}, "/home/u/bin/demo", Install{Kind: Dev, Path: "/home/u/bin/demo"}},
 	}
 	for _, c := range cases {
-		if got := classify(c.app, c.exe, []string{prefix}); got != c.want {
+		// 路径照本机的分隔符写，Windows 上也测同一条规则
+		c.exe, c.want.Path, c.want.Brew = filepath.FromSlash(c.exe), filepath.FromSlash(c.want.Path), filepath.FromSlash(c.want.Brew)
+		if got := classify(c.app, c.exe, []string{filepath.FromSlash(prefix)}); got != c.want {
 			t.Errorf("classify(%q) = %+v, want %+v", c.exe, got, c.want)
 		}
 	}
