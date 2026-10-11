@@ -12,7 +12,7 @@ soundadam 应用的公共底座：版本、安装来源、检查更新与自更�
 
 ```toml
 [dependencies]
-appkit = { git = "https://github.com/soundadam/appkit", tag = "rust/v0.2.0", features = ["egui"] }
+appkit = { git = "https://github.com/soundadam/appkit", tag = "rust/v0.2.1", features = ["egui"] }
 clap = { version = "4", features = ["derive"] }
 ```
 
@@ -39,7 +39,7 @@ fn main() -> eframe::Result {
 ### Go
 
 ```bash
-go get github.com/soundadam/appkit/go@v0.1.0
+go get github.com/soundadam/appkit/go@v0.2.0
 ```
 
 ```go
@@ -60,14 +60,16 @@ func main() {
 `go` 一行只是语言版本下限，发布出去的二进制用哪个 Go 编译看 `toolchain`。
 CI 与 release workflow 用 `actions/setup-go@v7` 的 `go-version-file: go.mod`，它优先读 `toolchain`。
 
-bubbletea 界面里嵌一个 `tui.New(app)`：model 的 `Init`、`Update` 转给它，`View` 里放它的那一行。
+bubbletea 界面里嵌一个 `tui.New(app)`（bubbletea v1；v2 用 `tuiv2.New(app)`，用法相同）：
+model 的 `Init`、`Update` 转给它，`View` 里放它的那一行。
 它有新版时提示、按 `u`（`Updater.Key`）在后台更新并显示进度。
 
 ## 版本
 
 - 版本号只有一处：Rust 是 `Cargo.toml` 的 `version`；Go 是构建时注入的 `main.version`，取自 tag。
   发布推 `v<version>` tag，release workflow 先核对两者一致。
-- 更新只看 GitHub 的 `releases/latest`：草稿和预发布（tag 里带 `-`）不会推给用户。
+- tag 里带 `-` 的是预发布：照样发 GitHub prerelease，但不推 tap；
+  更新只看 GitHub 的 `releases/latest`，草稿和预发布都不会推给用户。
 
 ## 发布产物
 
@@ -81,13 +83,54 @@ bubbletea 界面里嵌一个 `tui.New(app)`：model 的 `Init`、`Update` 转给
 | Windows | `<name>-<ver>-windows-<arch>.zip` | `<name>-<ver>-windows-<arch>/<name>.exe` |
 
 `<arch>` 是 `x86_64` 或 `aarch64`（Rust 的 `std::env::consts::ARCH`，Go 的 `amd64` / `arm64` 照此换名）。
-更新时按 GitHub 给每个产物算的 SHA-256（API 里的 `digest`）校验，对不上或没有就不装。
+平台由应用自己定，有哪几个就发哪几个。
+
+- `.app` 的主程序在 `Contents/MacOS/`；随 `.app` 一起发的命令行放在 `Contents/Helpers/`，它更新时也是整个 bundle 一起换。
+- 与可执行文件（或 `.app`）放在一起的还有 `README.md`、`LICENSE*`；用到第三方许可代码的再带 `THIRD_PARTY_NOTICES*`。
+- 更新时按 GitHub 给每个产物算的 SHA-256（API 里的 `digest`，Release 页面上也显示）校验，对不上或没有就不装。
+- 仓库打开 release immutability：发布之后产物与 tag 都改不了，出了问题就发新版本。
+  所以 release workflow 先传完产物再发布（`gh release create` 带着产物时就是这么做的）。
+
+## 安装渠道
+
+| 渠道 | 平台 | |
+| --- | --- | --- |
+| GitHub Releases 直接下载 | 全部 | 基准：每个平台都能直接下载使用，其余渠道只是同一批产物的包装 |
+| Homebrew Cask | macOS、Linux | 见下一节；预编译的产物一律用 Cask，不写 Formula |
+
+- [ ] Windows 的 Scoop / winget，用同一个 zip
 
 ## Homebrew
 
 `<owner>/homebrew-tap` 里的同名 Cask，`brew install --cask <owner>/tap/<name>`。
 macOS 带 `.app` 的装 `.app`，再用 `binary` 把 bundle 里的可执行文件链到 PATH；其余装 `binary`。
 Cask 模板放在应用仓的 `packaging/homebrew/<name>.rb`，release workflow 填好版本与 SHA-256 后推到 tap。
+
+- macOS 上用 `postflight_steps` 去掉装上的东西的隔离属性（理由见下一节）：
+
+  ```ruby
+  on_macos do
+    # ……
+    postflight_steps do
+      run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{appdir}}/<显示名>.app"] # 单个可执行文件是 "{{staged_path}}"
+    end
+  end
+  ```
+
+- `livecheck` 用 `url :url` 加 `strategy :github_latest`。
+- 改名时在 tap 的 `cask_renames.json` 里记上旧名到新名。
+- tap 自己的 CI 怎么测每个 Cask 见 [homebrew-tap](https://github.com/soundadam/homebrew-tap) 的 README。
+
+## 签名与 Gatekeeper
+
+macOS 产物只有 ad-hoc 签名，没有公证；Windows 产物没有签名，SmartScreen 第一次运行时会警告。
+
+macOS 上被拦下的只有带隔离属性的文件，所以三种安装方式里只有直接下载的那份第一次打开会被拦：
+
+- 浏览器下载的带隔离属性。到「系统设置 → 隐私与安全性」里点「仍要打开」，
+  或者 `xattr -dr com.apple.quarantine <解压出来的 .app 或可执行文件>`。应用的 README 写明这一条。
+- Cask 装的，安装时就去掉了（见上一节）。
+- 自更新换上的文件是程序自己下载的，本来就没有隔离属性。
 
 ## 命令行
 
@@ -100,7 +143,7 @@ Cask 模板放在应用仓的 `packaging/homebrew/<name>.rb`，release workflow 
 
 应用自己的参数与子命令和这几条在同一棵命令树上（Rust 用 clap，Go 用 cobra）。
 
-- 带 `.app` 的应用在 macOS 上从终端不带参数运行时，交给 LaunchServices 打开 `.app`
+- `.app` 的主程序（`Contents/MacOS/` 里的那个）在 macOS 上从终端不带参数运行时，交给 LaunchServices 打开 `.app`
   （与在 Finder 里双击相同，麦克风等权限不记在终端名下）。
 - Windows 的图形界面 release 构建没有控制台窗口，带参数运行时接到启动它的终端上输出。
 - 命令行应用在命令跑完后，知道有新版就往 stderr 写一行提示；stderr 不是终端时不写。
@@ -112,7 +155,7 @@ Cask 模板放在应用仓的 `packaging/homebrew/<name>.rb`，release workflow 
 | 安装方式 | 判断依据 | 更新 |
 | --- | --- | --- |
 | Homebrew | 可执行文件在 `<prefix>/Caskroom/<name>/` 下，或 `.app` 在 Applications 且有 Caskroom 记录 | `brew update` 后 `brew upgrade --cask <owner>/tap/<name>` |
-| macOS `.app` | 可执行文件在 `X.app/Contents/MacOS/` 下 | 下载、校验、解压到同目录，整个 bundle 原地替换 |
+| macOS `.app` | 可执行文件在 `X.app/Contents/` 下（`MacOS` 或 `Helpers`；`.app` 套 `.app` 时取最外层） | 下载、校验、解压到同目录，整个 bundle 原地替换 |
 | 单个可执行文件 | 其余 | 同上，替换可执行文件本身 |
 | 开发构建 | Rust：路径里有 `target/debug` 或 `target/release`；Go：版本号不是 semver（没注入，是 `dev`） | 不更新 |
 

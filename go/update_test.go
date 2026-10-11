@@ -83,7 +83,7 @@ func TestApplyReplacesTheExecutable(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		exeName += ".exe"
 	}
-	name, ok := assetName("demo", "1.1.0", runtime.GOOS, runtime.GOARCH)
+	name, ok := assetName("demo", "1.1.0", runtime.GOOS, runtime.GOARCH, false)
 	if !ok {
 		t.Skip("no release builds for this platform")
 	}
@@ -118,6 +118,46 @@ func TestApplyReplacesTheExecutable(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(exe); string(b) != "old" {
 		t.Fatalf("exe changed to %q after a failed check", b)
+	}
+}
+
+// .app 整个换掉：旧 bundle 里有、新 bundle 里没有的文件不留下。
+func TestApplyReplacesTheBundle(t *testing.T) {
+	name, ok := assetName("demo", "1.1.0", runtime.GOOS, runtime.GOARCH, true)
+	if !ok {
+		t.Skip("no release builds for this platform")
+	}
+	files := map[string]string{"Demo.app/Contents/MacOS/demo": "new", "README.md": "readme"}
+	var data []byte
+	if filepath.Ext(name) == ".zip" {
+		data = zipball(t, files)
+	} else {
+		data = tarball(t, files)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write(data) }))
+	defer srv.Close()
+	sum := sha256.Sum256(data)
+	asset := Asset{Name: name, URL: srv.URL, Size: int64(len(data)), Digest: "sha256:" + hex.EncodeToString(sum[:])}
+
+	dir := t.TempDir()
+	app := filepath.Join(dir, "Demo.app")
+	os.MkdirAll(filepath.Join(app, "Contents", "MacOS"), 0o755)
+	os.MkdirAll(filepath.Join(app, "Contents", "Helpers"), 0o755)
+	os.WriteFile(filepath.Join(app, "Contents", "MacOS", "demo"), []byte("old"), 0o755)
+	os.WriteFile(filepath.Join(app, "Contents", "Helpers", "gone"), []byte("old"), 0o755)
+
+	inst := Install{Kind: Bundle, Path: app}
+	if err := Apply(context.Background(), demo, inst, Release{Version: "1.1.0", Assets: []Asset{asset}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(app, "Contents", "MacOS", "demo")); string(b) != "new" {
+		t.Errorf("Contents/MacOS/demo = %q", b)
+	}
+	if exists(filepath.Join(app, "Contents", "Helpers", "gone")) {
+		t.Error("a file only the old bundle had is still there")
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 1 {
+		t.Errorf("left beside the bundle: %v", entries)
 	}
 }
 
