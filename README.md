@@ -56,6 +56,10 @@ func main() {
 }
 ```
 
+`go.mod` 的 `toolchain` 写一个仍受支持、`govulncheck` 报不出可达标准库漏洞的补丁版本：
+`go` 一行只是语言版本下限，发布出去的二进制用哪个 Go 编译看 `toolchain`。
+CI 与 release workflow 用 `actions/setup-go@v7` 的 `go-version-file: go.mod`，它优先读 `toolchain`。
+
 bubbletea 界面里嵌一个 `tui.New(app)`（bubbletea v1；v2 用 `tuiv2.New(app)`，用法相同）：
 model 的 `Init`、`Update` 转给它，`View` 里放它的那一行。
 它有新版时提示、按 `u`（`Updater.Key`）在后台更新并显示进度。

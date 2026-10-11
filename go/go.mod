@@ -2,6 +2,8 @@ module github.com/soundadam/appkit/go
 
 go 1.25.0
 
+toolchain go1.27.2
+
 require (
 	charm.land/bubbletea/v2 v2.0.6
 	github.com/charmbracelet/bubbletea v1.3.6
