@@ -64,7 +64,7 @@ impl App {
         Version::parse(self.version).expect("CARGO_PKG_VERSION is semver")
     }
 
-    /// 仓库主的 tap 里的同名 Cask：`<owner>/tap/<name>`。
+    /// 仓库主的 tap 里的同名 Cask：`<owner>/tap/<name>`（Formula 装的也是这个全名）。
     pub fn cask(&self) -> String {
         let owner = self.repo.split('/').next().unwrap_or(self.repo);
         format!("{owner}/tap/{}", self.name)

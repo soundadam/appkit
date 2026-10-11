@@ -26,7 +26,7 @@ func (a App) Dev() bool {
 	return !semver.IsValid(canonical(a.Version))
 }
 
-// Cask 是仓库主的 tap 里的同名 Cask："<owner>/tap/<name>"。
+// Cask 是仓库主的 tap 里的同名 Cask："<owner>/tap/<name>"（Formula 装的也是这个全名）。
 func (a App) Cask() string {
 	owner, _, _ := strings.Cut(a.Repo, "/")
 	return owner + "/tap/" + a.Name

@@ -4,12 +4,14 @@ use std::path::{Path, PathBuf};
 /// 正在运行的这份程序是怎么装上的，决定更新走哪条路。
 #[derive(Clone, Debug, PartialEq)]
 pub enum Install {
-    /// Homebrew Cask 装的。升级交给 `brew`，自己不动文件，否则 brew 的记录就错了。
+    /// Homebrew 装的（Cask，或 Formula）。升级交给 `brew`，自己不动文件，否则 brew 的记录就错了。
     Homebrew {
         brew: PathBuf,
-        /// 升级后重新启动用的路径：macOS 上是 `.app`，Linux 上是 `<prefix>/bin/<name>`
-        /// （Caskroom 里带版本号的目录升级后就没了）。
+        /// 升级后重新启动用的路径：macOS 上 Cask 是 `.app`，其余是 `<prefix>/bin/<name>`
+        /// （Caskroom、Cellar 里带版本号的目录升级后就没了）。
         launch: PathBuf,
+        /// 是 Formula（在 Cellar 里）而不是 Cask。
+        formula: bool,
     },
     /// macOS 上从 Releases 解压出来的 `.app`，整个 bundle 原地替换。
     Bundle(PathBuf),
@@ -73,10 +75,22 @@ fn classify(app: &App, exe: &Path, prefixes: &[PathBuf]) -> Install {
     for prefix in prefixes {
         let caskroom = prefix.join("Caskroom").join(app.name);
         let brew = prefix.join("bin/brew");
+        let launch = prefix.join("bin").join(app.name);
+        // Formula 的 opt 与 bin 下的链接都解到 Cellar 里带版本号的目录
+        if exe.starts_with(prefix.join("Cellar").join(app.name)) {
+            return Install::Homebrew {
+                brew,
+                launch,
+                formula: true,
+            };
+        }
         // Linux 上 Cask 的 binary 是指进 Caskroom 的符号链接
         if exe.starts_with(&caskroom) {
-            let launch = prefix.join("bin").join(app.name);
-            return Install::Homebrew { brew, launch };
+            return Install::Homebrew {
+                brew,
+                launch,
+                formula: false,
+            };
         }
         // macOS 上 Cask 把 .app 移到 Applications，Caskroom 里只留记录
         if let Some(b) = &bundle {
@@ -85,6 +99,7 @@ fn classify(app: &App, exe: &Path, prefixes: &[PathBuf]) -> Install {
                 return Install::Homebrew {
                     brew,
                     launch: b.clone(),
+                    formula: false,
                 };
             }
         }
@@ -125,7 +140,28 @@ mod tests {
             Install::Homebrew {
                 brew: prefix.join("bin/brew"),
                 launch: prefix.join("bin/demo"),
+                formula: false,
             }
+        );
+    }
+
+    #[test]
+    fn a_formula_binary_resolves_into_the_cellar() {
+        let prefix = PathBuf::from("/home/linuxbrew/.linuxbrew");
+        let prefixes = std::slice::from_ref(&prefix);
+        assert_eq!(
+            classify(&APP, &prefix.join("Cellar/demo/1.0.0/bin/demo"), prefixes),
+            Install::Homebrew {
+                brew: prefix.join("bin/brew"),
+                launch: prefix.join("bin/demo"),
+                formula: true,
+            }
+        );
+        // 名字开头相同的另一个应用的 Cellar 不算
+        let other = prefix.join("Cellar/demo-extra/1.0.0/bin/demo");
+        assert_eq!(
+            classify(&APP, &other, prefixes),
+            Install::Executable(other.clone())
         );
     }
 

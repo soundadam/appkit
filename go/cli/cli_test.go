@@ -49,3 +49,26 @@ func TestDevBuildsRefuseToUpdate(t *testing.T) {
 		t.Errorf("update --check on a dev build: %q, %v", out, err)
 	}
 }
+
+func TestAutoTurnsAutomaticChecksOnAndOff(t *testing.T) {
+	// os.UserConfigDir 在各平台读的变量都指到临时目录
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("HOME", dir)
+	t.Setenv("AppData", dir)
+	for _, value := range []string{"off", "on"} {
+		root := &cobra.Command{Use: "demo"}
+		AddCommands(root, demo)
+		if out, err := run(root, "update", "--auto", value); err != nil {
+			t.Fatalf("--auto %s: %q, %v", value, out, err)
+		}
+		if got := appkit.LoadAutoCheck(demo).Enabled(); got != (value == "on") {
+			t.Errorf("after --auto %s, enabled = %v", value, got)
+		}
+	}
+	root := &cobra.Command{Use: "demo", SilenceUsage: true}
+	AddCommands(root, demo)
+	if _, err := run(root, "update", "--auto", "maybe"); err == nil {
+		t.Error("--auto maybe was accepted")
+	}
+}

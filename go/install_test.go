@@ -17,7 +17,11 @@ func TestClassify(t *testing.T) {
 	}{
 		{demo, prefix + "/Caskroom/demo/1.0.0/demo-1.0.0-linux-x86_64/demo",
 			Install{Kind: Homebrew, Path: prefix + "/Caskroom/demo/1.0.0/demo-1.0.0-linux-x86_64/demo", Brew: prefix + "/bin/brew"}},
-		// 名字开头相同的另一个应用的 Caskroom 不算
+		// Formula：opt 与 bin 下的链接都解到 Cellar 里带版本号的目录
+		{demo, prefix + "/Cellar/demo/1.0.0/bin/demo",
+			Install{Kind: Homebrew, Path: prefix + "/Cellar/demo/1.0.0/bin/demo", Brew: prefix + "/bin/brew", Formula: true}},
+		// 名字开头相同的另一个应用的 Caskroom、Cellar 不算
+		{demo, prefix + "/Cellar/demo-extra/1.0.0/bin/demo", Install{Kind: Executable, Path: prefix + "/Cellar/demo-extra/1.0.0/bin/demo"}},
 		{demo, prefix + "/Caskroom/demo-extra/1.0.0/demo", Install{Kind: Executable, Path: prefix + "/Caskroom/demo-extra/1.0.0/demo"}},
 		{demo, "/home/u/bin/demo", Install{Kind: Executable, Path: "/home/u/bin/demo"}},
 		{App{Name: "demo", Version: "dev", Repo: "owner/demo"}, "/home/u/bin/demo", Install{Kind: Dev, Path: "/home/u/bin/demo"}},

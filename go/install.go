@@ -14,7 +14,7 @@ const (
 	Executable Kind = iota
 	// Bundle 是 macOS 上从 Releases 解压出来的 .app，整个 bundle 原地替换。
 	Bundle
-	// Homebrew 是 Cask 装的。升级交给 brew，自己不动文件，否则 brew 的记录就错了。
+	// Homebrew 是 brew 装的（Cask，或 Formula）。升级交给 brew，自己不动文件，否则 brew 的记录就错了。
 	Homebrew
 	// Dev 是开发构建，不更新。
 	Dev
@@ -27,6 +27,8 @@ type Install struct {
 	Path string
 	// Brew 是 Homebrew 安装时的 brew 可执行文件。
 	Brew string
+	// Formula 表示 Homebrew 安装是 Formula（在 Cellar 里）而不是 Cask。
+	Formula bool
 }
 
 // Detect 判断正在运行的这份程序是怎么装上的。
@@ -73,7 +75,11 @@ func classify(app App, exe string, prefixes []string) Install {
 	bundle, inBundle := bundleOf(exe)
 	for _, prefix := range prefixes {
 		caskroom := filepath.Join(prefix, "Caskroom", app.Name)
+		cellar := filepath.Join(prefix, "Cellar", app.Name)
 		brew := filepath.Join(prefix, "bin", "brew")
+		if strings.HasPrefix(exe, cellar+string(filepath.Separator)) {
+			return Install{Kind: Homebrew, Path: exe, Brew: brew, Formula: true}
+		}
 		// Linux 上 Cask 的 binary 是指进 Caskroom 的符号链接
 		if strings.HasPrefix(exe, caskroom+string(filepath.Separator)) {
 			return Install{Kind: Homebrew, Path: exe, Brew: brew}

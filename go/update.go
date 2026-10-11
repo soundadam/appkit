@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 )
 
 // Check 在有比正在运行的更新的正式版时返回它，否则返回 nil。
@@ -85,6 +86,7 @@ func Apply(ctx context.Context, app App, inst Install, rel Release, progress fun
 	if err != nil {
 		return fmt.Errorf("replacing %s: %w", inst.Path, err)
 	}
+	updated.Store(true)
 	return nil
 }
 
@@ -270,10 +272,10 @@ func exists(p string) bool {
 	return err == nil
 }
 
-// BrewUpgrade 先 brew update 拿到 tap 里的新 Cask，再 brew upgrade --cask。
-func BrewUpgrade(ctx context.Context, app App, brew string) error {
+// BrewUpgrade 先 brew update 拿到 tap 里的新版，再 brew upgrade --cask（Formula 是 --formula）。
+func BrewUpgrade(ctx context.Context, app App, inst Install) error {
 	run := func(args ...string) error {
-		cmd := exec.CommandContext(ctx, brew, args...)
+		cmd := exec.CommandContext(ctx, inst.Brew, args...)
 		cmd.Env = append(os.Environ(), "HOMEBREW_NO_AUTO_UPDATE=1")
 		out, err := cmd.CombinedOutput()
 		if err == nil {
@@ -285,5 +287,19 @@ func BrewUpgrade(ctx context.Context, app App, brew string) error {
 	if err := run("update", "--quiet"); err != nil {
 		return err
 	}
-	return run("upgrade", "--cask", app.Cask())
+	kind := "--cask"
+	if inst.Formula {
+		kind = "--formula"
+	}
+	if err := run("upgrade", kind, app.Cask()); err != nil {
+		return err
+	}
+	updated.Store(true)
+	return nil
 }
+
+// updated 表示本进程已经装好了新版。
+var updated atomic.Bool
+
+// Updated 表示本进程已经装好了新版（Apply 或 BrewUpgrade 成功过），之后不必再提示有新版。
+func Updated() bool { return updated.Load() }

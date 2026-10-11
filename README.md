@@ -12,7 +12,7 @@ soundadam 应用的公共底座：版本、安装来源、检查更新与自更�
 
 ```toml
 [dependencies]
-appkit = { git = "https://github.com/soundadam/appkit", tag = "rust/v0.2.1", features = ["egui"] }
+appkit = { git = "https://github.com/soundadam/appkit", tag = "rust/v0.3.0", features = ["egui"] }
 clap = { version = "4", features = ["derive"] }
 ```
 
@@ -39,7 +39,7 @@ fn main() -> eframe::Result {
 ### Go
 
 ```bash
-go get github.com/soundadam/appkit/go@v0.2.0
+go get github.com/soundadam/appkit/go@v0.3.0
 ```
 
 ```go
@@ -62,7 +62,8 @@ CI 与 release workflow 用 `actions/setup-go@v7` 的 `go-version-file: go.mod`�
 
 bubbletea 界面里嵌一个 `tui.New(app)`（bubbletea v1；v2 用 `tuiv2.New(app)`，用法相同）：
 model 的 `Init`、`Update` 转给它，`View` 里放它的那一行。
-它有新版时提示、按 `u`（`Updater.Key`）在后台更新并显示进度。
+它有新版时提示、按 `u`（`Updater.Key`）在后台更新并显示进度；
+`Available()`、`Updating()` 给应用判断现在能不能做别的事（比如更新下载时先不占网络）。
 
 ## 版本
 
@@ -139,6 +140,7 @@ macOS 上被拦下的只有带隔离属性的文件，所以三种安装方式�
 | `<name>` | 应用的默认行为：图形界面打开窗口，其余由应用自己定 |
 | `<name> update` | 查最新版并更新 |
 | `<name> update --check` | 只报告有没有新版 |
+| `<name> update --auto on\|off` | 打开或关掉自动检查 |
 | `<name> version`、`<name> --version` | 打印 `<name> <version>`；应用自己有 `version` 子命令的用它自己的 |
 
 应用自己的参数与子命令和这几条在同一棵命令树上（Rust 用 clap，Go 用 cobra）。
@@ -146,7 +148,8 @@ macOS 上被拦下的只有带隔离属性的文件，所以三种安装方式�
 - `.app` 的主程序（`Contents/MacOS/` 里的那个）在 macOS 上从终端不带参数运行时，交给 LaunchServices 打开 `.app`
   （与在 Finder 里双击相同，麦克风等权限不记在终端名下）。
 - Windows 的图形界面 release 构建没有控制台窗口，带参数运行时接到启动它的终端上输出。
-- 命令行应用在命令跑完后，知道有新版就往 stderr 写一行提示；stderr 不是终端时不写。
+- 命令行应用在命令跑完后，知道有新版就往 stderr 写一行提示；这次运行里已经装好新版的不写。
+  stderr 不是终端时不写，也不为它联网检查。
 
 ## 更新
 
@@ -154,7 +157,8 @@ macOS 上被拦下的只有带隔离属性的文件，所以三种安装方式�
 
 | 安装方式 | 判断依据 | 更新 |
 | --- | --- | --- |
-| Homebrew | 可执行文件在 `<prefix>/Caskroom/<name>/` 下，或 `.app` 在 Applications 且有 Caskroom 记录 | `brew update` 后 `brew upgrade --cask <owner>/tap/<name>` |
+| Homebrew Cask | 可执行文件在 `<prefix>/Caskroom/<name>/` 下，或 `.app` 在 Applications 且有 Caskroom 记录 | `brew update` 后 `brew upgrade --cask <owner>/tap/<name>` |
+| Homebrew Formula | 可执行文件在 `<prefix>/Cellar/<name>/` 下 | `brew update` 后 `brew upgrade --formula <owner>/tap/<name>` |
 | macOS `.app` | 可执行文件在 `X.app/Contents/` 下（`MacOS` 或 `Helpers`；`.app` 套 `.app` 时取最外层） | 下载、校验、解压到同目录，整个 bundle 原地替换 |
 | 单个可执行文件 | 其余 | 同上，替换可执行文件本身 |
 | 开发构建 | Rust：路径里有 `target/debug` 或 `target/release`；Go：版本号不是 semver（没注入，是 `dev`） | 不更新 |
@@ -162,7 +166,8 @@ macOS 上被拦下的只有带隔离属性的文件，所以三种安装方式�
 - 新版在重启后生效；图形界面上的 Restart 按钮启动新的一份再退出旧的。
 - Windows 上运行中的 exe 删不掉，只能改名让位；换下来的旧文件晚些再删（Rust 在程序退出后，Go 在下次更新时）。
 - 自动检查默认开着，至多一天一次；查到新版但还没装上时每次启动都查，让提示一直挂着。
-  开关、上次检查时间与查到的版本存在系统配置目录下的 `<name>/update.json`。
+  开关在图形界面的设置里，命令行是 `update --auto on|off`；
+  它与上次检查时间、查到的版本存在系统配置目录下的 `<name>/update.json`。
 - 联网只有两种请求：`GET api.github.com/repos/<owner>/<repo>/releases/latest`，以及用户要更新之后下载产物。
   代理取自 `https_proxy` 等环境变量。
 
@@ -181,3 +186,4 @@ macOS 上被拦下的只有带隔离属性的文件，所以三种安装方式�
 ## 许可证
 
 [MIT](LICENSE-MIT) 或 [Apache-2.0](LICENSE-APACHE)，任选其一。
+`go/` 下放着同样的两份，因为 Go 模块只打包自己目录里的文件，应用收集第三方许可时要从那里取。

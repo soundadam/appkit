@@ -1,6 +1,6 @@
 [package]
 name = "appkit"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 authors = ["soundadam"]
 repository = "https://github.com/soundadam/appkit"

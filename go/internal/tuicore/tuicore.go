@@ -74,6 +74,8 @@ func (c Core) Check() (Core, Cmd) {
 
 func (c Core) Available() bool { return c.status == available }
 
+func (c Core) Updating() bool { return c.status == updating }
+
 func (c Core) Start() (Core, Cmd) {
 	if c.status != available || c.inst.Kind == appkit.Dev {
 		return c, nil
@@ -86,7 +88,7 @@ func (c Core) Start() (Core, Cmd) {
 	go func(app appkit.App, inst appkit.Install, rel appkit.Release, events chan<- any) {
 		var err error
 		if inst.Kind == appkit.Homebrew {
-			err = appkit.BrewUpgrade(context.Background(), app, inst.Brew)
+			err = appkit.BrewUpgrade(context.Background(), app, inst)
 		} else {
 			err = appkit.Apply(context.Background(), app, inst, rel, func(done, total int64) {
 				if total > 0 {
