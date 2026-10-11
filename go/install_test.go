@@ -1,6 +1,7 @@
 package appkit
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -33,5 +34,39 @@ func TestClassify(t *testing.T) {
 func TestNewer(t *testing.T) {
 	if !newer("0.2.0", "v0.1.9") || newer("0.1.0", "0.1.0") || newer("1.0.0", "dev") {
 		t.Fatal("newer 按 semver 比较，不是 semver 的不算新")
+	}
+}
+
+func TestClassifyBundle(t *testing.T) {
+	prefix := t.TempDir()
+	cases := []struct {
+		exe  string
+		want Install
+	}{
+		{"/tmp/x/Demo.app/Contents/MacOS/demo", Install{Kind: Bundle, Path: "/tmp/x/Demo.app"}},
+		// 随 .app 发的命令行
+		{"/tmp/x/Demo.app/Contents/Helpers/demo", Install{Kind: Bundle, Path: "/tmp/x/Demo.app"}},
+		// 还没有 Caskroom 记录，Applications 里的也是自己解压的
+		{"/Applications/Demo.app/Contents/MacOS/demo", Install{Kind: Bundle, Path: "/Applications/Demo.app"}},
+		// 名字里有 .app、后面不是 Contents 的目录不是 bundle
+		{"/home/u/my.app/bin/demo", Install{Kind: Executable, Path: "/home/u/my.app/bin/demo"}},
+	}
+	for _, c := range cases {
+		c.exe, c.want.Path = filepath.FromSlash(c.exe), filepath.FromSlash(c.want.Path)
+		if got := classify(demo, c.exe, []string{prefix}); got != c.want {
+			t.Errorf("classify(%q) = %+v, want %+v", c.exe, got, c.want)
+		}
+	}
+
+	os.MkdirAll(filepath.Join(prefix, "Caskroom", "demo"), 0o755)
+	exe := filepath.FromSlash("/Applications/Demo.app/Contents/Helpers/demo")
+	want := Install{Kind: Homebrew, Path: exe, Brew: filepath.Join(prefix, "bin", "brew")}
+	if got := classify(demo, exe, []string{prefix}); got != want {
+		t.Errorf("with a Caskroom record: %+v", got)
+	}
+	// 解压在别处的另一份不算 brew 的
+	exe = filepath.FromSlash("/tmp/x/Demo.app/Contents/MacOS/demo")
+	if got := classify(demo, exe, []string{prefix}); got.Kind != Bundle {
+		t.Errorf("a copy outside Applications: %+v", got)
 	}
 }

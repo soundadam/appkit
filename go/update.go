@@ -32,7 +32,7 @@ func Check(ctx context.Context, app App) (*Release, error) {
 	return &latest, nil
 }
 
-// Apply 把 inst 原地换成 rel，新版在下次启动时生效。只处理 Executable；
+// Apply 把 inst 原地换成 rel，新版在下次启动时生效。只处理 Executable 与 Bundle；
 // progress(已下载, 总字节) 可以为 nil。
 func Apply(ctx context.Context, app App, inst Install, rel Release, progress func(done, total int64)) error {
 	switch inst.Kind {
@@ -41,12 +41,15 @@ func Apply(ctx context.Context, app App, inst Install, rel Release, progress fun
 	case Dev:
 		return errors.New("updating: development build")
 	}
-	asset, err := rel.AssetForThisPlatform(app)
+	bundle := inst.Kind == Bundle
+	asset, err := rel.AssetForThisPlatform(app, bundle)
 	if err != nil {
 		return err
 	}
 	dir := filepath.Dir(inst.Path)
-	removeLeftover(inst.Path)
+	if !bundle {
+		removeLeftover(inst.Path)
+	}
 
 	// 暂存在同一目录：最后一步是同一文件系统内的 rename，也顺便提前查出没有写权限
 	staging, err := os.MkdirTemp(dir, "."+app.Name+"-update-")
@@ -64,15 +67,35 @@ func Apply(ctx context.Context, app App, inst Install, rel Release, progress fun
 		return fmt.Errorf("unpacking %s: %w", asset.Name, err)
 	}
 	want := app.Name
-	if runtime.GOOS == "windows" {
+	switch {
+	case bundle:
+		want = filepath.Base(inst.Path)
+	case runtime.GOOS == "windows":
 		want += ".exe"
 	}
-	newExe, ok := find(unpacked, want)
+	found, ok := find(unpacked, want)
 	if !ok {
 		return fmt.Errorf("updating: %s is not in %s", want, asset.Name)
 	}
-	if err := replace(inst.Path, newExe); err != nil {
+	if bundle {
+		err = swap(inst.Path, found, filepath.Join(staging, "previous"))
+	} else {
+		err = replace(inst.Path, found)
+	}
+	if err != nil {
 		return fmt.Errorf("replacing %s: %w", inst.Path, err)
+	}
+	return nil
+}
+
+// swap 把目录 old 换成 new；old 原来的内容挪到 backup，失败就挪回去。
+func swap(old, new, backup string) error {
+	if err := os.Rename(old, backup); err != nil {
+		return err
+	}
+	if err := os.Rename(new, old); err != nil {
+		_ = os.Rename(backup, old)
+		return err
 	}
 	return nil
 }
@@ -126,8 +149,15 @@ func verify(actual []byte, expectedHex, what string) error {
 }
 
 func extract(archive, dest string) error {
-	if strings.HasSuffix(archive, ".tar.gz") {
+	switch {
+	case strings.HasSuffix(archive, ".tar.gz"):
 		return untar(archive, dest)
+	case runtime.GOOS == "darwin":
+		// ditto 原样还原 bundle 的权限、符号链接与签名所需的扩展属性
+		if out, err := exec.Command("/usr/bin/ditto", "-x", "-k", archive, dest).CombinedOutput(); err != nil {
+			return fmt.Errorf("ditto: %w: %s", err, strings.TrimSpace(string(out)))
+		}
+		return nil
 	}
 	return unzip(archive, dest)
 }
@@ -221,7 +251,7 @@ func writeFile(path string, r io.Reader, perm os.FileMode) error {
 	return f.Close()
 }
 
-// find 找产物里的可执行文件：在顶层，或顶层目录下一层（"<name>-<ver>-<platform>/<name>"）。
+// find 找产物里的可执行文件或 .app：在顶层，或顶层目录下一层（"<name>-<ver>-<platform>/<name>"）。
 func find(root, name string) (string, bool) {
 	if p := filepath.Join(root, name); exists(p) {
 		return p, true

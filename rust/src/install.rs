@@ -48,10 +48,15 @@ fn homebrew_prefixes() -> Vec<PathBuf> {
     v
 }
 
-/// 可执行文件所在的 `.app`（`X.app/Contents/MacOS/x`）。
+/// 可执行文件所在的最外层 `.app`（`X.app/Contents/…/x`）。
+/// `Contents` 下哪个目录都算：`MacOS` 里的主程序，`Helpers` 里随 `.app` 发的命令行也是。
 pub(crate) fn bundle_of(exe: &Path) -> Option<PathBuf> {
-    let bundle = exe.parent()?.parent()?.parent()?;
-    (bundle.extension()? == "app").then(|| bundle.to_path_buf())
+    let parts: Vec<_> = exe.components().collect();
+    let i = parts.windows(2).position(|w| {
+        Path::new(w[0].as_os_str()).extension() == Some("app".as_ref())
+            && w[1].as_os_str() == "Contents"
+    })?;
+    Some(parts[..=i].iter().collect())
 }
 
 fn classify(app: &App, exe: &Path, prefixes: &[PathBuf]) -> Install {
@@ -139,6 +144,14 @@ mod tests {
             classify(&APP, exe, &prefixes),
             Install::Homebrew { .. }
         ));
+        assert!(matches!(
+            classify(
+                &APP,
+                Path::new("/Applications/Demo.app/Contents/Helpers/demo"),
+                &prefixes
+            ),
+            Install::Homebrew { .. }
+        ));
         // 解压在别处的另一份不算 brew 的
         assert_eq!(
             classify(
@@ -148,6 +161,22 @@ mod tests {
             ),
             Install::Bundle("/tmp/x/Demo.app".into())
         );
+    }
+
+    #[test]
+    fn the_outermost_app_above_contents_is_the_bundle() {
+        for exe in [
+            "/tmp/x/Demo.app/Contents/MacOS/demo",
+            "/tmp/x/Demo.app/Contents/Helpers/demo",
+            "/tmp/x/Demo.app/Contents/Helpers/Login.app/Contents/MacOS/login",
+        ] {
+            assert_eq!(
+                bundle_of(Path::new(exe)),
+                Some(PathBuf::from("/tmp/x/Demo.app")),
+                "{exe}"
+            );
+        }
+        assert_eq!(bundle_of(Path::new("/home/u/my.app/bin/demo")), None);
     }
 
     #[test]

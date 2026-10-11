@@ -73,9 +73,9 @@ func Latest(ctx context.Context, app App) (Release, error) {
 	return Release{Version: strings.TrimPrefix(api.TagName, "v"), Page: api.HTMLURL, Assets: api.Assets}, nil
 }
 
-// AssetForThisPlatform 是本机平台该下载的那个产物。
-func (r Release) AssetForThisPlatform(app App) (Asset, error) {
-	name, ok := assetName(app.Name, r.Version, runtime.GOOS, runtime.GOARCH)
+// AssetForThisPlatform 是本机平台该下载的那个产物；bundle 表示要的是 macOS 的 .app。
+func (r Release) AssetForThisPlatform(app App, bundle bool) (Asset, error) {
+	name, ok := assetName(app.Name, r.Version, runtime.GOOS, runtime.GOARCH, bundle)
 	if !ok {
 		return Asset{}, fmt.Errorf("updating: no release builds for %s/%s", runtime.GOOS, runtime.GOARCH)
 	}
@@ -89,7 +89,7 @@ func (r Release) AssetForThisPlatform(app App) (Asset, error) {
 
 // assetName 是产物文件名 "<name>-<version>-<platform>.<ext>"，见 README 的「发布产物」。
 // 平台与架构用 Rust 的叫法（macos、x86_64、aarch64），两种语言的产物名才一致。
-func assetName(name, version, goos, goarch string) (string, bool) {
+func assetName(name, version, goos, goarch string, bundle bool) (string, bool) {
 	arch, ok := map[string]string{"amd64": "x86_64", "arm64": "aarch64"}[goarch]
 	if !ok {
 		return "", false
@@ -98,6 +98,9 @@ func assetName(name, version, goos, goarch string) (string, bool) {
 	switch goos {
 	case "darwin":
 		platform = "macos-" + arch + ".tar.gz"
+		if bundle {
+			platform = "macos-universal.zip"
+		}
 	case "linux":
 		platform = "linux-" + arch + ".tar.gz"
 	case "windows":

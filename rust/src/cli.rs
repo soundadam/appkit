@@ -143,9 +143,11 @@ fn hand_off_to_launch_services() -> bool {
     if std::os::unix::process::parent_id() == 1 {
         return false;
     }
+    // 只有 bundle 的主程序（Contents/MacOS 里）才交出去；Helpers 里的命令行照常跑
     let bundle = std::env::current_exe()
         .and_then(|p| p.canonicalize())
         .ok()
+        .filter(|p| p.parent().is_some_and(|d| d.ends_with("Contents/MacOS")))
         .and_then(|p| crate::install::bundle_of(&p));
     let Some(bundle) = bundle else { return false };
     std::process::Command::new("/usr/bin/open")
