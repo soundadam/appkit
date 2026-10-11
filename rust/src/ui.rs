@@ -98,7 +98,7 @@ impl Updater {
         let (status, ctx) = (self.status.clone(), self.ctx.clone());
         self.spawn(move |app, install| {
             let result = match install {
-                Install::Homebrew { brew, .. } => update::brew_upgrade(app, brew),
+                Install::Homebrew { .. } => update::brew_upgrade(app, install),
                 _ => update::apply(app, install, &release, |done, total| {
                     if total > 0 {
                         *lock(&status) = Status::Updating {
@@ -118,7 +118,10 @@ impl Updater {
 
     fn update_hint(&self) -> String {
         match &self.install {
-            Install::Homebrew { .. } => format!("Runs brew upgrade --cask {}", self.app.cask()),
+            Install::Homebrew { formula, .. } => {
+                let kind = if *formula { "--formula" } else { "--cask" };
+                format!("Runs brew upgrade {kind} {}", self.app.cask())
+            }
             Install::Dev => "Development build: updates are disabled".into(),
             _ => "Downloads the release from GitHub, checks its SHA-256 and replaces this copy"
                 .into(),

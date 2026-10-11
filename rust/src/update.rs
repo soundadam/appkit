@@ -226,8 +226,11 @@ fn swap(old: &Path, new: &Path, backup: &Path) -> Result<()> {
     })
 }
 
-/// Homebrew 装的：先 `brew update` 拿到 tap 里的新 Cask，再 `brew upgrade --cask`。
-pub fn brew_upgrade(app: &App, brew: &Path) -> Result<()> {
+/// Homebrew 装的：先 `brew update` 拿到 tap 里的新版，再 `brew upgrade --cask`（Formula 是 `--formula`）。
+pub fn brew_upgrade(app: &App, install: &Install) -> Result<()> {
+    let Install::Homebrew { brew, formula, .. } = install else {
+        return Err(Error::new("upgrading", "not installed with Homebrew"));
+    };
     let run = |args: &[&str]| -> Result<()> {
         let what = format!("brew {}", args.join(" "));
         let out = Command::new(brew)
@@ -243,7 +246,8 @@ pub fn brew_upgrade(app: &App, brew: &Path) -> Result<()> {
         Err(Error::new(&what, tail.unwrap_or("failed")))
     };
     run(&["update", "--quiet"])?;
-    run(&["upgrade", "--cask", &app.cask()])
+    let kind = if *formula { "--formula" } else { "--cask" };
+    run(&["upgrade", kind, &app.cask()])
 }
 
 /// 启动新装好的那一份，然后退出本进程。只在启动失败时返回。

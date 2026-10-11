@@ -43,6 +43,9 @@ func (u Updater) Check() (Updater, tea.Cmd) {
 // Available 表示查到了新版、还没开始装。
 func (u Updater) Available() bool { return u.core.Available() }
 
+// Updating 表示正在下载替换（或交给 brew 升级），还没结束。
+func (u Updater) Updating() bool { return u.core.Updating() }
+
 // Start 开始更新到查到的新版。
 func (u Updater) Start() (Updater, tea.Cmd) {
 	var c tuicore.Cmd

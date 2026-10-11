@@ -1,5 +1,5 @@
 //! 每个应用共用的命令行，建在 clap 上：应用用 derive 写自己的参数与子命令，
-//! appkit 在同一棵命令树上补 `update [--check]`、`version` 与 `--version`。
+//! appkit 在同一棵命令树上补 `update [--check]`、`update --auto on|off`、`version` 与 `--version`。
 
 use crate::{update, App, AutoCheck, Install};
 use clap::{Arg, ArgAction, Command, CommandFactory, Parser};
@@ -34,6 +34,12 @@ pub fn parse<C: Parser>(app: &App) -> C {
             std::process::exit(0)
         }
         Ok(Parsed::Update { check_only }) => std::process::exit(update_command(app, check_only)),
+        Ok(Parsed::Auto(on)) => {
+            AutoCheck::load(app).set_enabled(on);
+            let state = if on { "on" } else { "off" };
+            println!("Automatic update checks are {state}.");
+            std::process::exit(0)
+        }
         Err(e) => e.exit(),
     }
 }
@@ -43,6 +49,7 @@ enum Parsed<C> {
     App(C),
     Version,
     Update { check_only: bool },
+    Auto(bool),
 }
 
 /// 应用的命令树加上 appkit 的几条。
@@ -59,6 +66,13 @@ fn command<C: CommandFactory>(app: &App) -> Command {
                         .long("check")
                         .action(ArgAction::SetTrue)
                         .help("Only report whether a newer release exists"),
+                )
+                .arg(
+                    Arg::new("auto")
+                        .long("auto")
+                        .value_parser(["on", "off"])
+                        .conflicts_with("check")
+                        .help("Turn automatic update checks on or off"),
                 ),
         )
         .subcommand(Command::new("version").about("Print the version"))
@@ -68,8 +82,11 @@ fn parse_from<C: Parser>(app: &App, args: Vec<OsString>) -> Result<Parsed<C>, cl
     let mut cmd = command::<C>(app);
     let matches = cmd.try_get_matches_from_mut(args)?;
     match matches.subcommand() {
-        Some(("update", sub)) => Ok(Parsed::Update {
-            check_only: sub.get_flag("check"),
+        Some(("update", sub)) => Ok(match sub.get_one::<String>("auto") {
+            Some(v) => Parsed::Auto(v == "on"),
+            None => Parsed::Update {
+                check_only: sub.get_flag("check"),
+            },
         }),
         Some(("version", _)) => Ok(Parsed::Version),
         _ => C::from_arg_matches(&matches)
@@ -101,9 +118,9 @@ fn update_command(app: &App, check_only: bool) -> i32 {
 
     let install = Install::detect(app);
     let result = match &install {
-        Install::Homebrew { brew, .. } => {
+        Install::Homebrew { .. } => {
             println!("Upgrading with Homebrew…");
-            update::brew_upgrade(app, brew)
+            update::brew_upgrade(app, &install)
         }
         Install::Dev => {
             eprintln!("This is a development build; it does not update itself.");
@@ -223,6 +240,16 @@ mod tests {
             parse(&["demo", "update", "--check"]),
             Ok(Parsed::Update { check_only: true })
         ));
+        assert!(matches!(
+            parse(&["demo", "update", "--auto", "off"]),
+            Ok(Parsed::Auto(false))
+        ));
+        assert!(matches!(
+            parse(&["demo", "update", "--auto", "on"]),
+            Ok(Parsed::Auto(true))
+        ));
+        assert!(parse(&["demo", "update", "--auto", "maybe"]).is_err());
+        assert!(parse(&["demo", "update", "--auto", "on", "--check"]).is_err());
         assert!(matches!(parse(&["demo", "version"]), Ok(Parsed::Version)));
         let e = parse(&["demo", "--version"]).unwrap_err();
         assert_eq!(e.kind(), ErrorKind::DisplayVersion);
